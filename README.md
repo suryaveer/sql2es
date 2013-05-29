@@ -7,7 +7,8 @@ The QueryService.py is a tornado Web service which converts SQL like queries int
 ##Dependent libs to be installed to set it up on a server
 
 These steps are for deploying it with Python 2.7. 
-The compatible version of pyparsing lib (the parser for SQL like queries) need pyparsing-1.5.5
+The compatible version of pyparsing lib (the parser for SQL like queries) need pyparsing-1.5.5.
+The steps:
 
     easy_install http://cheeseshop.python.org/packages/source/p/pyparsing/pyparsing-1.5.5.tar.gz
     easy_install rawes
@@ -15,6 +16,7 @@ The compatible version of pyparsing lib (the parser for SQL like queries) need p
     easy_install pip
     pip install simplejson
     pip install tornado
+
 
 ##Sample Run
 
