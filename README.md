@@ -3,7 +3,7 @@ sql2es
 
 Python based REST service which converts SQL queries into ES format
 
-#Python Server to run segmentation service from CMS REST endpoint.
+##Python Server to run segmentation service from CMS REST endpoint.
 
 The QueryService.py is a tornado Web service which converts SQL like queries into a corresponding ElasticSearch Format. It returns a dictionary of status and result.
 
@@ -22,9 +22,39 @@ pip install tornado
 
 ##Sample Run
 
-    /usr/bin/python2.7 QueryService.py
-    curl 127.0.0.1:9288 -d '{"query" : "SELECT cms.release,cms.module,cms.id  FROM dchung_crawler_demo WHERE bar BETWEEN 0 AND 39 OR content.foo = 32 AND content.growthAccelerationCashCost=10 OR content.levelUnlock BETWEEN 0 AND 20"}'
+    /usr/bin/python2.7 QueryService.py -port=9288
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE content.growthAccelerationCashCost=10 OR content.levelUnlock BETWEEN 0 AND 20"}'
     {
-    "status": "OK",
-    "result": "{'query': {'query_string': {'query': 'bar:[0 TO 39] OR content.foo:32 AND content.growthAccelerationCashCost:10 OR content.levelUnlock:[0 TO 20]', 'default_operator': 'AND'}}, 'fields':['cms.release', 'cms.module', 'cms.id']}"
+    "status": "OK", 
+    "result": "{'query': {'query_string': {'query': 'content.growthAccelerationCashCost:10 OR content.levelUnlock:[0 TO 20]', 'default_operator': 'AND'}}}"
+    }
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE content.growthAccelerationCashCost=10 AND content.levelUnlock BETWEEN 0 AND 20"}'
+    {
+    "status": "OK", 
+    "result": "{'query': {'query_string': {'query': 'content.growthAccelerationCashCost:10 AND content.levelUnlock:[0 TO 20]', 'default_operator': 'AND'}}}"
+    }
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE content.growthAccelerationCashCost=10 AND content.llUnlock > 0"}'
+    {
+    "status": "OK", 
+    "result": "{'query': {'query_string': {'query': 'content.growthAccelerationCashCost:10 AND content.levelUnlock:{0 TO *}', 'default_operator': 'AND'}}}"
+    }
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE NOT content.itemCap=5 AND content.growthAccelerationshCost=3 AND content.levelUnlock BETWEEN 0 AND 200"}'
+    {
+    "status": "OK", 
+    "result": "{'query': {'query_string': {'query': 'NOT content.itemCap:5 AND content.growthAccelerationCashCost:3 AND content.levelUnlock:[0 TO 200]', 'default_operator': 'AND'}}}"
+    }
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE NOT content.itemCap=5 AND content.growthAccelerationCashCost=3 AND content.levelUnlock BETWEEN 0 AND 200 AND"}'
+    {
+    "status": "FAILED", 
+    "reason": "Invalid Syntax (at char 148), (line:1, col:149)"}
+
+    curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE NOT content.itemCap=5 AND content.growthAccelerationCashCost=3 AND content.levelUnlock BETWEEN 0 AND 200}'
+    {
+    "status": "FAILED", 
+    "reason": "Decoding input JSON has failed"
     }
