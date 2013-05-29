@@ -124,7 +124,7 @@ class ElseSearch(object):
             print(" " * err.loc + "^\n")
             print("ERROR:", err)
             if calledFromREST:
-                return {'status' : 'FAILED','reason' : err}
+                return {'status' : 'FAILED','reason' :'%s' %err}
             else:
                 return 1
             
@@ -193,7 +193,7 @@ class ElseSearch(object):
                 #
                 params.update({'search_type': 'scan', 'scroll': '10m', 'size': qsize})
         if calledFromREST :
-            return {'status' : 'OK','result' : data}
+            return {'status' : 'OK','result' : '%s' %data}
         else:
             return request, data, params
             
