@@ -46,11 +46,13 @@ The steps:
     "result": "{'query': {'query_string': {'query': 'NOT content.itemCap:5 AND content.growthAccelerationCashCost:3 AND content.levelUnlock:[0 TO 200]', 'default_operator': 'AND'}}}"
     }
 
+    //Invalid SQL Syntax - an orphan 'AND' at the end of query
     curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE NOT content.itemCap=5 AND content.growthAccelerationCashCost=3 AND content.levelUnlock BETWEEN 0 AND 200 AND"}'
     {
     "status": "FAILED", 
     "reason": "Invalid Syntax (at char 148), (line:1, col:149)"}
 
+    //Invalid JSON passed - Missing '"' after 200
     curl 127.0.0.1:9288 -d '{"query" : "SELECT * FROM dchung_crawler_demo WHERE NOT content.itemCap=5 AND content.growthAccelerationCashCost=3 AND content.levelUnlock BETWEEN 0 AND 200}'
     {
     "status": "FAILED", 
