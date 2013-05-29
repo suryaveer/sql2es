@@ -1,12 +1,8 @@
 sql2es
 ======
 
-Python based REST service which converts SQL queries into ES format
-
-##Python Server to run segmentation service from CMS REST endpoint.
-
+Python based REST service which converts SQL queries into ES format.
 The QueryService.py is a tornado Web service which converts SQL like queries into a corresponding ElasticSearch Format. It returns a dictionary of status and result.
-
 
 ##Dependent libs to be installed to set it up on a server
 
