@@ -20,8 +20,7 @@ Sample usage:
 from sql2es.supervisor import supervisor
 
 supervisor(
-    script='/home/slodha/sql2es.py',
-    port=9288
+    script='sql2es.py'
 )
 '''
 import signal
@@ -39,19 +38,19 @@ import tornado.options
 import tornado_util.server
 from tornado.options import options
 
+tornado.options.define('port', 9288, int)
 tornado.options.define('workers_count', 4, int)
-tornado.options.define('logfile_template', None, str)
-tornado.options.define('pidfile_template', None, str)
+tornado.options.define('logfile', '/var/log/SQL2ESCommand.log', str)
+tornado.options.define('pidfile', '/var/run/SQL2ESCommand.pid', str)
 tornado.options.define('start_check_timeout', 3, int)
 
-
-import os.path
 import os
+import os.path
 
 
-def is_alive(port):
+def is_alive():
     try:
-        path = options.pidfile_template % dict(port=port)
+        path = options.pidfile
         pid = int(file(path).read())
         if os.path.exists("/proc/{0}".format(pid)):
             return True
@@ -60,35 +59,20 @@ def is_alive(port):
         return False
 
 
-def is_running(port):
+def is_running():
     try:
-        urllib2.urlopen('http://localhost:%s/status/' % (port))
+        urllib2.urlopen('http://localhost:%s/status/' % (options.port))
         return True
     except urllib2.URLError:
         return False
     except urllib2.HTTPError:
-        return False
+        return False    
 
-def start_worker(script, port):
-    if is_alive(port):
-        logging.warn("another process already started on %s", port)
-        sys.exit(1)
-    logging.debug('start worker %s', port)
-
-    args = [script,
-            '--port=%s' % (port,),
-            '--pidfile=%s' % (options.pidfile_template % dict(port=port),)]
-
-    if options.logfile_template:
-        args.append('--logfile=%s' % (options.logfile_template % dict(port=port),))
-
-    return subprocess.Popen(args)
-
-def stop_worker(port):
-    logging.debug('stop worker %s', port)
-    path = options.pidfile_template % dict(port=port)
+def stop_process():
+    logging.debug('Stopping SQL2ES Process')
+    path = options.pidfile
     if not os.path.exists(path):
-        logging.warning('pidfile %s does not exist. dont know how to stop', path)
+        logging.warning('pidfile %s does not exist. Do not know how to stop', path)
     try:
         pid = int(file(path).read())
         os.kill(pid, signal.SIGTERM)
@@ -99,66 +83,73 @@ def stop_worker(port):
     except ValueError:
         pass
 
-def rm_pidfile(port):
-    pid_path = options.pidfile_template % dict(port=port)
+def rm_pidfile():
+    pid_path = options.pidfile
     if os.path.exists(pid_path):
         try:
             os.remove(pid_path)
         except :
-            logging.warning('failed to rm  %s', pid_path)
+            logging.warning('failed to remove  %s', pid_path)
 
 def stop():
-    if any(map_workers(is_running)):
-        logging.warning('some of the workers are running; trying to kill')
+    if (is_running):
+        logging.warning('Process is running; Trying to kill')
 
     for i in xrange(int(options.stop_timeout) + 1):
-        map_workers(stop_worker)
+        stop_process()
         time.sleep(1)
-        if not any(map_workers(is_alive)):
-            map_workers(rm_pidfile)
+        if not is_alive():
+            rm_pidfile()
             break
     else:
-        logging.warning('failed to stop workers')
+        logging.warning('failed to stop Process')
         sys.exit(1)
 
-def start(script, port):
-    start_worker(script, port)
+def start(script):
+    if is_alive():
+        logging.warn("another process already started on %s", port)
+        sys.exit(1)
+    logging.debug('started SQL2ES on port: %s', options.port)
+
+    args = [script,
+            '--port=%s' % (options.port,),
+            '--pidfile=%s' % (options.pidfile)]
+
+    if options.logfile:
+        args.append('--logfile=%s' % (options.logfile))
+
+    subprocess.Popen(args)
     time.sleep(options.start_check_timeout)
 
 def status(expect=None):
-    res = map_workers(is_running)
-
-    if all(res):
+    if is_running():
         if expect == 'stopped':
-            logging.error('all workers are running')
+            logging.error('SQL2ES is running.')
             return 1
         else:
-            logging.info('all workers are running')
+            logging.info('SQL2ES is running.')
             return 0
-    elif any(res):
-        logging.warn('some workers are running!')
-        return 1
     else:
         if expect == 'started':
-            logging.error('all workers are stopped')
+            logging.error('SQL2ES is stopped')
             return 1
         else:
-            logging.info('all workers are stopped')
+            logging.info('SQL2ES is stopped')
             return 0
 
-def supervisor(script, port):
+def supervisor(script):
     (cmd,) = tornado.options.parse_command_line()
 
     logging.getLogger().setLevel(logging.DEBUG)
     tornado.options.enable_pretty_logging()
 
     if cmd == 'start':
-        start(script, port)
+        start(script)
         sys.exit(status(expect='started'))
 
     if cmd == 'restart':
         stop()
-        start(script, port)
+        start(script)
         sys.exit(status(expect='started'))
 
     elif cmd == 'stop':
