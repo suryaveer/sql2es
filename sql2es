@@ -1,0 +1,8 @@
+#!/usr/bin/python2.7
+
+from supervisor import supervisor
+
+supervisor(
+    script='./sql2es.py',
+    config='./sql2es.conf'
+)
