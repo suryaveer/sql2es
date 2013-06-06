@@ -1,5 +1,4 @@
 #!/usr/bin/python2.7
-# -*- coding: utf-8 -*-
 
 '''
 This is module for creating of init.d scripts for tornado-based
@@ -10,24 +9,11 @@ It implements following commands:
 * stop
 * restart
 * status
-
-Sample usage:
-
-=== /etc/init.d/sql2es ===
-#!/usr/bin/python2.7
-# -*- coding: utf-8 -*-
-
-from sql2es.supervisor import supervisor
-
-supervisor(
-    script='/home/slodha/sql2es.py',
-    port=9288
-)
 '''
 import signal
 
 import sys
-import urllib2
+import socket
 import httplib
 import logging
 import subprocess
@@ -36,22 +22,27 @@ import time
 from functools import partial
 
 import tornado.options
-import tornado_util.server
 from tornado.options import options
 
-tornado.options.define('workers_count', 4, int)
-tornado.options.define('logfile_template', None, str)
-tornado.options.define('pidfile_template', None, str)
+tornado.options.define('port', 0, int)
+tornado.options.define('logfile', None, str)
+tornado.options.define('pidfile', None, str)
+tornado.options.define('process_name', None, str)
 tornado.options.define('start_check_timeout', 3, int)
+tornado.options.define('stop_timeout', 3, int)
 
-
-import os.path
 import os
+import os.path
 
+logger = logging.getLogger('Logger')
+logger.setLevel(logging.DEBUG)
 
-def is_alive(port):
+#So that it doesn't log to console
+logger.propagate = False
+
+def is_alive():
     try:
-        path = options.pidfile_template % dict(port=port)
+        path = options.pidfile
         pid = int(file(path).read())
         if os.path.exists("/proc/{0}".format(pid)):
             return True
@@ -60,105 +51,132 @@ def is_alive(port):
         return False
 
 
-def is_running(port):
+def is_running():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        urllib2.urlopen('http://localhost:%s/status/' % (port))
+        s.connect(('127.0.0.1', int(options.port)))
+        s.shutdown(2)
         return True
-    except urllib2.URLError:
-        return False
-    except urllib2.HTTPError:
+    except:
         return False
 
-def start_worker(script, port):
-    if is_alive(port):
-        logging.warn("another process already started on %s", port)
-        sys.exit(1)
-    logging.debug('start worker %s', port)
-
-    args = [script,
-            '--port=%s' % (port,),
-            '--pidfile=%s' % (options.pidfile_template % dict(port=port),)]
-
-    if options.logfile_template:
-        args.append('--logfile=%s' % (options.logfile_template % dict(port=port),))
-
-    return subprocess.Popen(args)
-
-def stop_worker(port):
-    logging.debug('stop worker %s', port)
-    path = options.pidfile_template % dict(port=port)
+def stop_process():
+    logger.debug('Stopping %s Process' %options.process_name)
+    path = options.pidfile
     if not os.path.exists(path):
-        logging.warning('pidfile %s does not exist. dont know how to stop', path)
+        logger.warning('pidfile %s does not exist. Do not know how to stop', path)
     try:
         pid = int(file(path).read())
         os.kill(pid, signal.SIGTERM)
     except OSError:
-        pass
+        raise
     except IOError:
         pass
     except ValueError:
         pass
 
-def rm_pidfile(port):
-    pid_path = options.pidfile_template % dict(port=port)
+def rm_pidfile():
+    pid_path = options.pidfile
     if os.path.exists(pid_path):
         try:
             os.remove(pid_path)
         except :
-            logging.warning('failed to rm  %s', pid_path)
+            logger.warning('failed to remove  %s', pid_path)
 
 def stop():
-    if any(map_workers(is_running)):
-        logging.warning('some of the workers are running; trying to kill')
+    if is_running():
+        print 'Process is running; Trying to kill'
+        logger.warning('Process is running; Trying to kill')
 
     for i in xrange(int(options.stop_timeout) + 1):
-        map_workers(stop_worker)
+        stop_process()
         time.sleep(1)
-        if not any(map_workers(is_alive)):
-            map_workers(rm_pidfile)
+        if not is_alive():
+            rm_pidfile()
             break
     else:
-        logging.warning('failed to stop workers')
+        logger.warning('failed to stop Process')
         sys.exit(1)
 
-def start(script, port):
-    start_worker(script, port)
+def start(script):
+    if is_alive():
+        logger.warn("another process already started on %s", port)
+        sys.exit(1)
+    print 'Attempting to start %s on port: %s' %(options.process_name,options.port)
+    logger.debug('Attempting to start %s on port: %s' %(options.process_name,options.port))
+
+    args = [script,
+            '--port=%s' % (options.port)]
+
+    d = subprocess.Popen(args)
+    #print d.pid
+    f = open(options.pidfile,'w')
+    f.write('%s' %d.pid)
+    f.close()
     time.sleep(options.start_check_timeout)
 
 def status(expect=None):
-    res = map_workers(is_running)
-
-    if all(res):
+    if is_running():
         if expect == 'stopped':
-            logging.error('all workers are running')
+            print 'ERROR : % was expected to be stopped, but it is still running.' %options.process_name
+            logger.error('%s was expected to be stopped, but it is still running.' %options.process_name)
             return 1
         else:
-            logging.info('all workers are running')
+            print '%s is running.' %options.process_name
+            logger.info('%s is running.' %options.process_name)
             return 0
-    elif any(res):
-        logging.warn('some workers are running!')
-        return 1
     else:
         if expect == 'started':
-            logging.error('all workers are stopped')
+            print 'ERROR : % was expected to be started, but it is not running.' %options.process_name
+            logger.error('%s was expected to be started, but it is not running.' %options.process_name)
             return 1
         else:
-            logging.info('all workers are stopped')
+            print '%s is stopped.' %options.process_name
+            logger.info('%s is stopped.' %options.process_name)
             return 0
 
-def supervisor(script, port):
+def supervisor(script, config):
+    tornado.options.parse_config_file(config)
     (cmd,) = tornado.options.parse_command_line()
 
-    logging.getLogger().setLevel(logging.DEBUG)
-    tornado.options.enable_pretty_logging()
+    if not options.logfile:
+        print 'Log file  must be defined in config file. Exiting.'
+        sys.exit(1)
+    else:
+        #File handler to store logs
+        fh = logging.FileHandler(options.logfile)
+        fh.setLevel(logging.DEBUG)
+
+        # create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+
+        # add the handlers to the logger
+        logger.addHandler(fh)
+
+    if options.port == 0:
+        logger.error('Port must be defined in config file and be Non zero. Exiting.')
+        sys.exit(1)
+
+    if not options.logfile:
+        logger.error('Log file  must be defined in config file. Exiting.')
+        sys.exit(1)
+
+    if not options.pidfile:
+        logger.error('ProcessID storage file must be defined in config file. Exiting')
+        sys.exit(1)
+
+    if not options.process_name:
+        logger.error('Process Name must be defined in config file. Exiting')
+        sys.exit(1)
 
     if cmd == 'start':
-        start(script, port)
+        start(script)
         sys.exit(status(expect='started'))
 
     if cmd == 'restart':
         stop()
-        start(script, port)
+        start(script)
         sys.exit(status(expect='started'))
 
     elif cmd == 'stop':
@@ -166,8 +184,9 @@ def supervisor(script, port):
         sys.exit(status(expect='stopped'))
 
     elif cmd == 'status':
+        print 'Attempting to get status for %s. ' %options.process_name 
         status()
 
     else:
-        logging.error('either --start, --stop, --restart or --status should be present')
+        logger.error('either --start, --stop, --restart or --status should be present')
         sys.exit(1)

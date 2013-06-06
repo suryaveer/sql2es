@@ -13,8 +13,6 @@ from simplejson import loads, dumps
 from tornado.options import define, options
 import elseql
 from elseql.search import ElseSearch
-import logging
-log = logging.getLogger('SQL2ES')
 
 define("port", default=9288, help="run on the given port", type=int)
 
@@ -44,10 +42,6 @@ def main():
     search = ElseSearch()
     tornado.options.parse_command_line()
     
-    import daemon
-    ctx = daemon.DaemonContext()
-    ctx.open()
-        
     application = tornado.web.Application([
         (r"/", MainHandler, dict(search=search)),
     ])
