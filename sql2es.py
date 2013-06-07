@@ -13,8 +13,30 @@ from simplejson import loads, dumps
 from tornado.options import define, options
 import elseql
 from elseql.search import ElseSearch
+import daemon
+import lockfile
+import sys
+import os
 
 define("port", default=9288, help="run on the given port", type=int)
+define("pidfile", None, str)
+define("logfile", None, str)
+
+
+class PidFile(object):
+    def __init__(self,path):
+        self.path = path
+        self.pidfile = None
+
+    def __enter__(self):
+        self.pidfile = open(self.path,"w")
+        self.pidfile.write(str(os.getpid()))
+        self.pidfile.close()
+        return self.pidfile
+
+    def __exit__(self,exc_type=None, exc_value=None, exc_tb=None):
+        os.reomve(self.path)
+
 
 class MainHandler(tornado.web.RequestHandler):
     def initialize(self, search):
@@ -39,9 +61,21 @@ class MainHandler(tornado.web.RequestHandler):
             self.write(response)
 
 def main():
-    search = ElseSearch()
     tornado.options.parse_command_line()
-    
+    #context = daemon.DaemonContext(pidfile=options.pidfile)
+    #context.open()
+    if not options.pidfile:
+        print 'PID file  must be defined. Exiting.'
+        sys.exit(1)
+
+    if not options.logfile:
+        print 'Log file  must be defined. Exiting.'
+        sys.exit(1)
+    log = open(options.logfile, 'a+')
+    context = daemon.DaemonContext(stdout=log, stderr=log, pidfile=PidFile(options.pidfile))
+    context.open()
+    #with daemon.DaemonContext():
+    search = ElseSearch()
     application = tornado.web.Application([
         (r"/", MainHandler, dict(search=search)),
     ])

@@ -33,6 +33,8 @@ tornado.options.define('stop_timeout', 3, int)
 
 import os
 import os.path
+import daemon
+import lockfile
 
 logger = logging.getLogger('Logger')
 logger.setLevel(logging.DEBUG)
@@ -105,20 +107,24 @@ def start(script):
     print 'Attempting to start %s on port: %s' %(options.process_name,options.port)
     logger.debug('Attempting to start %s on port: %s' %(options.process_name,options.port))
 
+    #with daemon.DaemonContext(pidfile=lockfile.FileLock(options.pidfile)):
+    #    os.execl(script, options.process_name,'--port=%s' %options.port)
     args = [script,
-            '--port=%s' % (options.port)]
+            '--port=%s' % options.port,
+            '--pidfile=%s' %options.pidfile]
 
-    d = subprocess.Popen(args)
+    subprocess.Popen(args)
     #print d.pid
-    f = open(options.pidfile,'w')
-    f.write('%s' %d.pid)
-    f.close()
+    #f = open(options.pidfile,'w')
+    #f.write('%s' %d.pid)
+    #f.close()
+    #print 'Started'
     time.sleep(options.start_check_timeout)
 
 def status(expect=None):
     if is_running():
         if expect == 'stopped':
-            print 'ERROR : % was expected to be stopped, but it is still running.' %options.process_name
+            print 'ERROR : %s was expected to be stopped, but it is still running.' %options.process_name
             logger.error('%s was expected to be stopped, but it is still running.' %options.process_name)
             return 1
         else:
@@ -127,7 +133,7 @@ def status(expect=None):
             return 0
     else:
         if expect == 'started':
-            print 'ERROR : % was expected to be started, but it is not running.' %options.process_name
+            print 'ERROR : %s was expected to be started, but it is not running.' %options.process_name
             logger.error('%s was expected to be started, but it is not running.' %options.process_name)
             return 1
         else:
